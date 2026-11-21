@@ -14,3 +14,4 @@
 ## Process
 - [Ingest Workflow](Ingest-Workflow)
 - [Design Decisions](Design-Decisions)
+- [Skills & Automation](Skills-And-Automation)
