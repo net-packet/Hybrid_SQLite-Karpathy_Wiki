@@ -49,10 +49,12 @@ documents/
 `sources/` همیشه ساخته می‌شود (یک صفحه per منبع).
 `entities/` و `concepts/` **فقط وقتی** ساخته می‌شوند که واقعاً موضوعی تکرار شده باشد که ارزش صفحه مستقل داشته باشد.
 
-### ۵. زبان
-- زبان محتوای `wiki/` = زبان منبع اصلی (فارسی→فارسی، انگلیسی→انگلیسی)
-- متن دوزبانه → فارسی با اصطلاحات فنی به انگلیسی در پرانتز
-- **نام فایل‌های ویکی همیشه انگلیسی و کوتاه** (مثلاً `steel-plant-contract.md`)
+### ۵. زبان / Language Rules
+- زبان محتوای `wiki/` = زبان منبع اصلی (فارسی→فارسی، انگلیسی→انگلیسی) / Wiki content language = source language (fa→fa, en→en)
+- متن دوزبانه → فارسی با اصطلاحات فنی به انگلیسی در پرانتز / Mixed → Persian with English terms in parentheses
+- **نام فایل‌های ویکی همیشه انگلیسی و کوتاه** (مثلاً `steel-plant-contract.md`) / Wiki filenames always English short
+- **زبان پاسخ = زبان سؤال** / **Response language = question language**: سؤال فارسی → جواب فارسی، English question → English answer
+- پرسش ترکیبی دوزبانه → زبان غالب / Mixed query → dominant language
 
 ### ۶. آپلود بدون تأیید ممنوع
 هیچ فایلی بدون اینکه اول موضوعش تشخیص داده شود، مجموعه‌اش پیشنهاد شود و کاربر تأیید کند، اضافه نمی‌شود.
@@ -123,6 +125,9 @@ documents/
 4. **در پاسخ بگو از کدام مسیر جواب دادی** و همه منابع را ذکر کن.
 
 **قاعده:** سؤال تحلیلی هرگز مستقیم به SQLite نمی‌رود. ویکی نقطه شروع است، نه آخرین راه‌حل.
+**Rule:** Analytical query never goes direct to SQLite. Wiki is the starting point, not the last resort.
+
+**زبان پاسخ = زبان سؤال / Response language = question language**
 
 ### Lint — دو لایه
 
