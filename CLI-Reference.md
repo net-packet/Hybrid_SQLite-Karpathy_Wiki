@@ -5,12 +5,12 @@ python3 /opt/data/documents/doclib.py --help
 ```
 
 usage: doclib.py [-h]
-                 {add,search,list,show,rm,reindex,stats,collections,links,lint,graph} ...
+                 {add,search,list,show,rm,reindex,stats,collections,links,lint,graph,ur-new,ur-add,ur-list} ...
 
 آرشیو اسناد چندمجموعه‌ای
 
 positional arguments:
-  {add,search,list,show,rm,reindex,stats,collections,links,lint,graph}
+  {add,search,list,show,rm,reindex,stats,collections,links,lint,graph,ur-new,ur-add,ur-list}
     add                 افزودن فایل/پوشه
     search              جستجو
     list                فهرست فایل‌ها
@@ -22,6 +22,9 @@ positional arguments:
     links               لینک‌های ورودی/خروجی یک صفحه ویکی
     lint                بازبینی سلامت ویکی
     graph               نقشه لینک‌های ویکی
+    ur-new              ساخت کتاب جدید در حال مطالعه
+    ur-add              افزودن نقل‌قول به کتاب در حال مطالعه
+    ur-list             فهرست کتاب‌های در حال مطالعه
 
 options:
   -h, --help            show this help message and exit
@@ -183,3 +186,34 @@ options:
   --collection, -c COLLECTION
 
 ```
+
+## منبع در حال مطالعه / Living Source
+
+تنها فایلی که بعد از ساخت می‌تواند رشد کند: `raw/files/User-Reading-<slug>.md`
+The only file that may grow after creation.
+
+```bash
+# ساخت کتاب جدید / Create new book
+python3 doclib.py ur-new maintenance-engineering \
+  --title "مهندسی نگهداشت" -a "جان موبلی" -y 1399 \
+  --publisher "نشر" --isbn "978-..." -c maintenance-learning
+
+# افزودن نقل‌قول / Add a quote
+python3 doclib.py ur-add maintenance-engineering \
+  -p 156 -q "OEE از حاصل‌ضرب دسترس‌پذیری، عملکرد و کیفیت به دست می‌آید." \
+  -t "KPI نگهداشت" -n "یادداشت اختیاری" -c maintenance-learning
+
+# فهرست کتاب‌های در حال مطالعه / List active books
+python3 doclib.py ur-list
+```
+
+| عمل / Action | مجاز / Allowed |
+|---|---|
+| افزودن `q-NNN` / Add quote | ✅ |
+| اصلاح تایپی / Fix typo | ✅ با `**اصلاح:** <تاریخ>` |
+| حذف نقل‌قول / Delete | ❌ — `**لغو:** دلیل` بنویس |
+| تغییر frontmatter موجود / Modify field | ❌ |
+| شماره‌گذاری مجدد / Renumber | ❌ — `q-NNN` شناسه ثبات است |
+
+هر نقل‌قول یک تکه جدا در `index.db` با شماره صفحه است؛ جستجوی نقطه‌ای مستقیم نقل‌قول را با ارجاع برمی‌گرداند.
+Each quote is a separate chunk in `index.db` with its page number; point query returns it with citation.

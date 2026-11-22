@@ -133,6 +133,67 @@ curl -sS https://api.groq.com/openai/v1/audio/transcriptions \
 - `prompt` پارامتر پشتیبانی می‌شود — لیست اصطلاحات تخصصی را آنجا بده.
    `prompt` param supported — put domain terms there.
 
+
+## منبع در حال مطالعه / Living Source
+
+**محرک: کاربر می‌گوید «کتاب X را شروع کردم».**
+**Trigger: user says "I started book X".**
+
+### جریان اجباری / Mandatory Flow
+
+1. **جستجو** — `ur-list` + `search "<عنوان>"`. کتاب قبلاً هست؟
+   Search first. Does the book already exist?
+   - **هست** → همان را ادامه بده (`ur-add`)، فایل جدید نساز
+   - Exists → continue it, don't create a new file
+2. **موضوع → مجموعه** — پیشنهاد بده؛ اگر در دو مجموعه جا داشت، بپرس.
+   Propose collection; ask if it fits two.
+3. **فیلدهای گم‌شده** — فقط چیزهایی که کاربر نداد بپرس (عنوان/نویسنده/زبان لازم؛ ناشر/سال/ISBN اختیاری).
+   Ask only for missing fields.
+4. **پیش‌نمایش + تأیید** — جدول زیر را نشان بده. **تا «تأیید» نگرفتی هیچ فایلی نساز.**
+   Show preview. **Create nothing before approval.**
+
+```
+📖 پیش‌نمایش منبع جدید / New source preview
+
+عنوان / Title      ...
+نویسنده / Author   ...
+سال / Year         ...
+ناشر / Publisher   ...
+زبان / Language    ...
+مجموعه / Collection ...
+نام فایل / Filename User-Reading-<slug>.md
+صفحه ویکی / Wiki    wiki/sources/user-reading-<slug>.md
+```
+
+5. **ساخت** — `ur-new` (فایل خام + صفحه ویکی + ردیف `index.md`، همه خودکار)
+   Create — `ur-new` (raw + wiki + index row, all automatic)
+6. **هر نقل‌قول بعدی** — `ur-add`، بدون پیش‌نمایش مجدد
+   Each later quote — `ur-add`, no re-preview
+
+### نام‌گذاری / Naming
+
+```
+raw/files/User-Reading-<english-slug>.md
+wiki/sources/user-reading-<english-slug>.md
+```
+
+slug **انگلیسی**؛ عنوان کتاب در frontmatter، نه در نام فایل.
+slug is English; book title in frontmatter, not filename.
+
+### صفحه ویکی / Wiki Page
+
+خودکار بازتولید می‌شود — دستی ویرایشش نکن. سه نما:
+Auto-regenerated — do not hand-edit. Three views:
+
+1. **نمای ۱ — به ترتیب افزودن** / In reading order
+2. **نمای ۲ — به ترتیب صفحه** / By page
+3. **موضوعات پوشش‌داده‌شده** / Topics covered
+
+`q-NNN` شناسه ثبات است، نه ترتیب.
+`q-NNN` is a stability ID, not ordering.
+
+---
+
 ## جستجو — دو مسیر، نه یکی / Query — Two Paths, Not One
 
 **مسیر ۱ — سؤال نقطه‌ای / Point Query** («بودجه چقدر بود؟»، «جریمه چند درصد؟» / "What was the budget?", "Penalty %?"):

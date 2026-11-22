@@ -41,6 +41,9 @@ documents/
 هرگز محتوای `raw/` را ویرایش نکن. اگر منبع جدیدی نسخه بهتری داشت، فایل جدید با نام جدید اضافه می‌شود.
 Never edit `raw/` content. If a new source has a better version, add as new file with new name.
 
+**تنها استثنا / Only exception:** فایل‌های `raw/files/User-Reading-*.md` — منبع زنده، فقط append. جزئیات در بخش «منبع در حال مطالعه».
+**Only exception:** `raw/files/User-Reading-*.md` — living source, append-only. See "Living Source" section.
+
 ### ۲. هر عدد و ادعای عددی باید ارجاع داشته باشد / Every Number Must Be Cited
 در صفحات `wiki/`، هر عدد باید به منبع و جای مشخصش اشاره کند:
 In `wiki/` pages, every number must cite source + location:
@@ -173,6 +176,112 @@ Staleness same: if source a page was built on changed, page must be re-read.
 | `text` | `raw/files/` یا `raw/web/` | مستقیم / Direct |
 | `image` | `raw/images/` | **مدل خودش می‌خواند** — صفر نصب / **Model reads directly** — zero install |
 | `audio` | `raw/audio/` | Groq Whisper large-v3 (STT) |
+| `user-reading` | `raw/files/User-Reading-<slug>.md` | **منبع زنده** — append-only، هر نقل‌قول یک تکه / **Living source** — append-only, one chunk per quote |
+
+## منبع در حال مطالعه (`user-reading`) / Living Source
+
+**استثنای یگانه بر قاعده «raw تغییرناپذیر».** / **The only exception to raw immutability.**
+
+فایلی که نامش با `User-Reading-` شروع می‌شود، تنها فایلی است که بعد از ساخت می‌تواند تغییر کند — و آن هم فقط با **افزودن**.
+A file whose name starts with `User-Reading-` is the only file that may change after creation — and only by **appending**.
+
+### چه زمانی / When
+
+کاربر می‌گوید «کتاب X را شروع کردم» و مشخصات می‌دهد. **هیچ فایلی بدون تأیید صریح ساخته نمی‌شود.**
+User says "I started book X" and gives details. **No file is created without explicit confirmation.**
+
+### جریان / Flow
+
+1. تشخیص موضوع → پیشنهاد مجموعه / Detect topic → propose collection
+2. `doclib.py ur-list` و `search` → کتاب قبلاً هست؟ / Check if book already exists
+3. پر کردن جاهای خالی با سؤال از کاربر (فقط فیلدهای لازم) / Fill gaps by asking (only needed fields)
+4. **پیش‌نمایش** (عنوان، نویسنده، سال، ناشر، زبان، مجموعه، نام فایل، مسیرها) → تأیید / **Preview** → confirmation
+5. `doclib.py ur-new` → ساخت فایل خام + صفحه ویکی + ثبت در `index.md`
+6. هر نقل‌قول بعدی: `doclib.py ur-add` (بدون پیش‌نمایش مجدد) / Each later quote: `ur-add` (no re-preview)
+
+### نام‌گذاری / Naming
+
+```
+raw/files/User-Reading-<english-slug>.md
+wiki/sources/user-reading-<english-slug>.md
+```
+
+- **slug انگلیسی** — عنوان کتاب (فارسی یا انگلیسی) در frontmatter می‌آید، نه در نام فایل
+- **slug انگلیسی** — book title goes in frontmatter, never in filename
+
+### frontmatter اجباری / Required Frontmatter
+
+```yaml
+source_type: user-reading
+mutable: append-only
+book_title: <عنوان اصلی>
+author: <نویسنده>
+year: <سال چاپ>
+publisher: <ناشر>
+edition: <چاپ>
+isbn: <ISBN>
+lang: fa | en
+page_ref_basis: <مبنای شماره صفحه>
+collection: <نام مجموعه>
+started: <YYYY-MM-DD>
+```
+
+`source_type: user-reading` منبع حقیقت است، نه نام فایل. اگر فایل تغییر نام دهد، رفتار append-only حفظ می‌شود.
+`source_type: user-reading` is the source of truth, not the filename. Renaming preserves append-only behavior.
+
+### ساختار بدنه / Body Structure
+
+```markdown
+## q001 — ص ۴۷
+> متن دقیق جمله
+
+**موضوع:** نگهداشت پیشگیرانه
+**یادداشت:** (اختیاری)
+**افزوده:** 2026-11-22
+```
+
+### مجاز و ممنوع / Allowed vs Forbidden
+
+| عمل / Action | مجاز / Allowed |
+|---|---|
+| افزودن `q-NNN` جدید / Add new `q-NNN` | ✅ |
+| اصلاح غلط تایپی در `q-NNN` / Fix typo in existing | ✅ با `**اصلاح:** <تاریخ>` |
+| افزودن فیلد خالی frontmatter / Add empty field | ✅ |
+| حذف نقل‌قول / Delete quote | ❌ — `**لغو:** دلیل` بنویس |
+| تغییر فیلد موجود frontmatter / Modify existing field | ❌ |
+| شماره‌گذاری مجدد `q-NNN` / Renumber | ❌ — شناسه ثابت است |
+
+`q-NNN` **شناسه ثبات است، نه ترتیب**. ترتیب افزودن و ترتیب صفحه جدا نگه داشته می‌شوند.
+`q-NNN` is a **stability ID, not ordering**. Insertion order and page order tracked separately.
+
+### صفحه ویکی / Wiki Page
+
+یک صفحه per کتاب، خودکار بازتولید می‌شود. سه بخش:
+One page per book, auto-regenerated. Three sections:
+
+1. **نمای ۱ — به ترتیب افزودن** / In reading order
+2. **نمای ۲ — به ترتیب صفحه** / By page
+3. **موضوعات پوشش‌داده‌شده** / Topics covered
+
+هیچ `entities/` یا `concepts/` برای کتاب ساخته نمی‌شود مگر موضوعی در چند منبع تکرار شود.
+No `entities/` or `concepts/` for a book unless a topic repeats across sources.
+
+### ایندکس / Indexing
+
+هر نقل‌قول **یک تکه جدا** در `index.db` است، با شماره صفحه. جستجوی نقطه‌ای مستقیماً نقل‌قول را با ارجاع برمی‌گرداند:
+Each quote is **one separate chunk** in `index.db`, with its page number. Point query returns the quote with citation:
+
+```
+[کتاب X · نویسنده · ص ۴۷ · q001] متن جمله | موضوع: نگهداشت پیشگیرانه
+```
+
+### دستورها / Commands
+
+```bash
+python3 doclib.py ur-new <slug> --title "<عنوان>" -a "<نویسنده>" -y <سال> -c <collection>
+python3 doclib.py ur-add <slug> -p <صفحه> -q "<متن>" [-t "<موضوع>"] [-n "<یادداشت>"] -c <collection>
+python3 doclib.py ur-list
+```
 
 ## فایل‌های مرتبط در `raw/` / Sidecar Files in `raw/`
 
@@ -215,6 +324,11 @@ python3 /opt/data/documents/doclib.py reindex [-c <collection>]
 python3 /opt/data/documents/doclib.py links sources/name -c <collection>   # لینک ورودی/خروجی / In/out links
 python3 /opt/data/documents/doclib.py lint [-c <collection>]               # بازبینی سلامت / Health check
 python3 /opt/data/documents/doclib.py graph [-c <collection>]              # نقشه لینک‌ها / Link map
+
+# منبع در حال مطالعه / Living Source
+python3 /opt/data/documents/doclib.py ur-new <slug> --title "<عنوان>" -a "<نویسنده>" -y <سال> -c <collection>
+python3 /opt/data/documents/doclib.py ur-add <slug> -p <صفحه> -q "<متن>" [-t "<موضوع>"] [-n "<یادداشت>"] -c <collection>
+python3 /opt/data/documents/doclib.py ur-list
 ```
 
 ## افزودن مجموعه جدید / Adding New Collection
