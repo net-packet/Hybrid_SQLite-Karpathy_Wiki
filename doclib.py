@@ -21,6 +21,7 @@ doclib.py — آرشیو اسناد چندمجموعه‌ای
 """
 
 import argparse
+import datetime
 import hashlib
 import os
 import re
@@ -276,6 +277,51 @@ def extract_text(path: Path):
     return [(None, path.read_text(errors="replace"))]
 
 
+def extract_user_reading(path: Path):
+    """هر نقل‌قول یک تکه جدا — با شماره صفحه. frontmatter ایندکس نمی‌شود."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = path.read_text(errors="replace")
+    if not text.startswith("---"):
+        return extract_text(path)
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return extract_text(path)
+    fields = {}
+    for line in parts[1].splitlines():
+        line = line.strip()
+        if ":" in line and not line.startswith("#"):
+            k, v = line.split(":", 1)
+            fields[k.strip()] = v.strip()
+    body = parts[2]
+
+    title = fields.get("book_title", path.stem)
+    author = fields.get("author", "—")
+    out = []
+    for m in re.finditer(
+        r"^##\s+q-?(\d+)\s*[—\-–]\s*(?:ص\s*|p\.?\s*)?(.+?)\s*$(.*?)(?=^##\s|^\Z)",
+        body, re.M | re.S,
+    ):
+        num, page, chunk = m.group(1), m.group(2).strip(), m.group(3)
+        quote = ""
+        qm = re.search(r"^>\s*(.+)$", chunk, re.M)
+        if qm:
+            quote = qm.group(1).strip()
+        subject = ""
+        sm = re.search(r"^\*\*موضوع:\*\*\s*(.+)$", chunk, re.M)
+        if sm:
+            subject = sm.group(1).strip()
+        if not quote:
+            continue
+        piece = f"[{title} · {author} · ص {page} · q{int(num):03d}] {quote}"
+        if subject:
+            piece += f" | موضوع: {subject}"
+        page_val = int(re.sub(r"[^0-9]", "", page) or 0) or page
+        out.append((page_val, piece))
+    return out or [(None, f"{title} — {author}")]
+
+
 EXTRACTORS = {
     "pdf": extract_pdf,
     "docx": extract_docx,
@@ -341,7 +387,10 @@ def add_file(conn, path: Path, collection: str, verbose=True):
         return None
 
     rel = rel_path_of(path, collection)
-    extractor = EXTRACTORS[stype]
+    if path.name.startswith(UR_PREFIX) and path.suffix.lower() == ".md":
+        extractor = extract_user_reading
+    else:
+        extractor = EXTRACTORS[stype]
     try:
         pages = extractor(path)
     except Exception as e:
@@ -811,6 +860,323 @@ def cmd_lint(args):
     return 0
 
 
+# ─────────────────────────────────────────────────────────────
+# منبع در حال مطالعه / User-Reading living source
+# پیشوند نام فایل: User-Reading-<slug>.md — تنها فایل‌های appendable
+# ─────────────────────────────────────────────────────────────
+
+UR_PREFIX = "User-Reading-"
+
+
+def _parse_frontmatter(text: str):
+    """برمی‌گرداند (dict فیلدها, متن بدنه). بدون نیاز به PyYAML."""
+    if not text.startswith("---"):
+        return {}, text
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}, text
+    fields, body = {}, parts[2]
+    for line in parts[1].splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        k, v = line.split(":", 1)
+        fields[k.strip()] = v.strip()
+    return fields, body
+
+
+def _find_ur_file(collection: str, slug: str):
+    path = COLLECTIONS / collection / "raw" / "files" / f"{UR_PREFIX}{slug}.md"
+    return path if path.exists() else None
+
+
+def _ur_wiki_page(collection: str, slug: str) -> Path:
+    return COLLECTIONS / collection / "wiki" / "sources" / f"user-reading-{slug}.md"
+
+
+def _ur_quotes(body: str):
+    """استخراج نقل‌قول‌ها از بدنه: [(qid, page, text, topic, note, added, status), ...]"""
+    quotes = []
+    cur = None
+    lines = body.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = re.match(r"^##\s+q-?(\d+)\s*[—\-–]\s*(?:ص\s*|p\.?\s*)?(.+?)\s*$", line.strip())
+        if m:
+            if cur:
+                quotes.append(cur)
+            cur = {"qid": f"q{int(m.group(1)):03d}", "num": int(m.group(1)),
+                   "page": m.group(2).strip(), "text": "", "topic": "",
+                   "note": "", "added": "", "status": "active"}
+        elif cur is not None:
+            s = line.strip()
+            if s in ("**لغو شده**", "~~لغو شده~~") or s.startswith("**لغو:**"):
+                cur["status"] = "cancelled"
+            elif s.startswith("> ") and not cur["text"]:
+                cur["text"] = s[2:].strip()
+            elif s.startswith("**") and ":**" in s:
+                key, val = s.split(":**", 1)
+                key = key.strip("* ")
+                val = val.strip()
+                if key == "موضوع":
+                    cur["topic"] = val
+                elif key == "یادداشت":
+                    cur["note"] = val
+                elif key == "افزوده":
+                    cur["added"] = val
+        i += 1
+    if cur:
+        quotes.append(cur)
+    return quotes
+
+
+def _ur_render_wiki(slug: str, fields: dict, quotes: list) -> str:
+    title = fields.get("book_title", slug)
+    lang = fields.get("lang", "fa")
+    active = [q for q in quotes if q["status"] != "cancelled"]
+    cancelled = [q for q in quotes if q["status"] == "cancelled"]
+
+    def page_key(q):
+        digits = re.sub(r"[^0-9]", "", q["page"])
+        return int(digits) if digits else 10**9
+
+    out = [f"# کتاب: {title}", "",
+           f"> منبع زنده — در حال خواندن. نویسنده: {fields.get('author', '—')} · "
+           f"سال: {fields.get('year', '—')} · زبان: {lang}",
+           f"> فایل خام: [raw/files/{UR_PREFIX}{slug}.md]"
+           f"(../../raw/files/{UR_PREFIX}{slug}.md) · append-only",
+           "", f"## نمای ۱ — به ترتیب افزودن / In reading order", ""]
+    if active:
+        for q in sorted(active, key=lambda x: x["num"]):
+            subj = f" · {q['topic']}" if q["topic"] else ""
+            out.append(f"- {q['qid']} · ص {q['page']}{subj}")
+    else:
+        out.append("_(هنوز نقل‌قولی ثبت نشده)_")
+
+    out += ["", "## نمای ۲ — به ترتیب صفحه / By page", ""]
+    if active:
+        for q in sorted(active, key=page_key):
+            subj = f" · {q['topic']}" if q["topic"] else ""
+            out.append(f"- ص {q['page']} · {q['qid']}{subj}")
+    else:
+        out.append("_(خالی)_")
+
+    topics = sorted({q["topic"] for q in active if q["topic"]})
+    out += ["", "## موضوعات پوشش‌داده‌شده / Topics covered", ""]
+    if topics:
+        for t in topics:
+            ids = ", ".join(q["qid"] for q in active if q["topic"] == t)
+            out.append(f"- {t} ({ids})")
+    else:
+        out.append("_(بدون موضوع‌بندی)_")
+
+    if cancelled:
+        out += ["", "## لغو‌شده / Cancelled", ""]
+        for q in sorted(cancelled, key=lambda x: x["num"]):
+            out.append(f"- ~~{q['qid']}~~ ص {q['page']}")
+
+    out += ["", "## منابع / Sources", "",
+            f"- [raw/files/{UR_PREFIX}{slug}.md]"
+            f"(../../raw/files/{UR_PREFIX}{slug}.md) — {len(active)} نقل‌قول", ""]
+    return "\n".join(out)
+
+
+def _ur_sync(collection: str, slug: str, verbose=True):
+    """ایندکس مجدد فایل خام + بازتولید صفحه ویکی + ایندکس آن."""
+    raw = _find_ur_file(collection, slug)
+    if not raw:
+        print(f"✗ فایل منبع پیدا نشد: {UR_PREFIX}{slug}.md")
+        return 1
+    fields, body = _parse_frontmatter(raw.read_text(encoding="utf-8"))
+    quotes = _ur_quotes(body)
+
+    conn = db()
+    page = _ur_wiki_page(collection, slug)
+    for target in (raw, page):
+        rec = conn.execute(
+            "SELECT file_id FROM files WHERE collection=? AND name=?",
+            (collection, target.name),
+        ).fetchone()
+        if rec:
+            conn.execute("DELETE FROM chunks WHERE file_id=?", (rec[0],))
+            conn.execute("DELETE FROM files WHERE file_id=?", (rec[0],))
+    conn.commit()
+    conn.close()
+
+    class _A:
+        pass
+    a = _A()
+    a.path, a.collection = str(raw), collection
+    cmd_add(a)
+
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(_ur_render_wiki(slug, fields, quotes), encoding="utf-8")
+
+    a2 = _A()
+    a2.path = str(page)
+    a2.collection = collection
+    cmd_add(a2)
+
+    if verbose:
+        active = len([q for q in quotes if q["status"] != "cancelled"])
+        print(f"  ↻ ویکی بازتولید شد: {page.relative_to(COLLECTIONS / collection)} ({active} نقل‌قول)")
+
+    _ur_index_ensure(collection, slug, fields, len([q for q in quotes if q["status"] != "cancelled"]))
+    return 0
+
+
+def _ur_index_ensure(collection: str, slug: str, fields: dict, n_quotes: int):
+    """اطمینان از حضور صفحه در index.md مجموعه — هم جدول، هم فهرست بولت."""
+    index = COLLECTIONS / collection / "wiki" / "index.md"
+    if not index.exists():
+        return
+    link = f"sources/user-reading-{slug}.md"
+    text = index.read_text(encoding="utf-8")
+    title = fields.get("book_title", slug)
+    author = fields.get("author", "—")
+    bullet = f"- [{title}]({link}) — منبع زنده، {n_quotes} نقل‌قول · {author}"
+    today = datetime.date.today().isoformat()
+
+    lines = text.splitlines()
+
+    # آیا این صفحه قبلاً در index هست؟ (جدول یا بولت)
+    def is_ours(ln: str) -> bool:
+        return link in ln and (ln.lstrip().startswith("- [") or ln.lstrip().startswith("|"))
+
+    has_row = any(is_ours(ln) for ln in lines)
+    table_mode = any(ln.strip().startswith("| #") or
+                     (ln.strip().startswith("|") and "منبع" in ln) for ln in lines)
+
+    out = []
+    if table_mode:
+        rows = [ln for ln in lines if ln.strip().startswith("|") and not is_ours(ln)]
+        next_n = 1
+        for ln in rows:
+            m = re.match(r"\|\s*(\d+)\s*\|", ln.strip())
+            if m:
+                next_n = max(next_n, int(m.group(1)) + 1)
+        new_row = (f"| {next_n} | {title} | منبع زنده (user-reading) | {today} "
+                   f"| [{slug}]({link}) |")
+
+        replaced = False
+        for ln in lines:
+            if is_ours(ln):
+                if not replaced:
+                    out.append(new_row)
+                    replaced = True
+                continue
+            if "هنوز منبعی اضافه نشده" in ln:
+                continue  # placeholder را حذف کن؛ ردیف واقعی گذاشته می‌شود
+            out.append(ln)
+            if not replaced and re.match(r"^\|\s*-{2,}", ln.strip()) is None and \
+               ln.strip().startswith("|---"):
+                pass
+        if not replaced:
+            # بعد از آخرین ردیف جدول درج کن
+            last = max(i for i, ln in enumerate(out) if ln.strip().startswith("|"))
+            out.insert(last + 1, new_row)
+    else:
+        replaced = False
+        for ln in lines:
+            if is_ours(ln):
+                if not replaced:
+                    out.append(bullet)
+                    replaced = True
+                continue
+            out.append(ln)
+        if not replaced:
+            try:
+                at = next(i for i, ln in enumerate(out) if ln.strip().startswith("## منابع")) + 1
+            except StopIteration:
+                at = len(out)
+            while at < len(out) and not out[at].strip():
+                at += 1
+            out.insert(at, bullet)
+
+    index.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+
+
+def cmd_user_reading_new(args):
+    collection, slug = args.collection, args.slug
+    coll_dir = COLLECTIONS / collection
+    if not coll_dir.exists():
+        print(f"مجموعه «{collection}» وجود ندارد.")
+        return 1
+    if _find_ur_file(collection, slug):
+        print(f"✗ از قبل هست: {UR_PREFIX}{slug}.md — برای افزودن نقل‌قول از add-quote استفاده کن.")
+        return 1
+
+    raw = coll_dir / "raw" / "files" / f"{UR_PREFIX}{slug}.md"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+
+    fields = {
+        "source_type": "user-reading",
+        "mutable": "append-only",
+        "book_title": args.title,
+        "author": args.author or "—",
+        "year": args.year or "—",
+        "publisher": getattr(args, "publisher", None) or "—",
+        "edition": getattr(args, "edition", None) or "—",
+        "isbn": getattr(args, "isbn", None) or "—",
+        "lang": args.lang or "fa",
+        "page_ref_basis": getattr(args, "page_basis", None) or "شماره صفحه چاپ",
+        "collection": collection,
+        "started": args.started or datetime.date.today().isoformat(),
+    }
+    fm = "\n".join(f"{k}: {v}" for k, v in fields.items())
+    raw.write_text(f"---\n{fm}\n---\n\n# {args.title}\n", encoding="utf-8")
+    print(f"+ فایل منبع ساخته شد: {raw.relative_to(coll_dir)}")
+    return _ur_sync(collection, slug)
+
+
+def cmd_user_reading_add_quote(args):
+    collection, slug = args.collection, args.slug
+    raw = _find_ur_file(collection, slug)
+    if not raw:
+        print(f"✗ فایل منبع نیست: {UR_PREFIX}{slug}.md — اول new بزن.")
+        return 1
+
+    text = raw.read_text(encoding="utf-8")
+    fields, body = _parse_frontmatter(text)
+    quotes = _ur_quotes(body)
+    nxt = max([q["num"] for q in quotes], default=0) + 1
+    qid = f"q{nxt:03d}"
+    today = datetime.date.today().isoformat()
+
+    block = [f"## {qid} — ص {args.page}", f"> {args.quote}", ""]
+    if args.topic:
+        block.append(f"**موضوع:** {args.topic}")
+    if args.note:
+        block.append(f"**یادداشت:** {args.note}")
+    block += [f"**افزوده:** {today}", ""]
+
+    new_text = text.rstrip() + "\n\n" + "\n".join(block)
+    raw.write_text(new_text, encoding="utf-8")
+    print(f"+ {qid} ص {args.page} به {raw.name} اضافه شد")
+    return _ur_sync(collection, slug)
+
+
+def cmd_user_reading_list(args):
+    found = False
+    for coll_dir in sorted(COLLECTIONS.iterdir()) if COLLECTIONS.exists() else []:
+        if not coll_dir.is_dir():
+            continue
+        raw_files = coll_dir / "raw" / "files"
+        if not raw_files.exists():
+            continue
+        for p in sorted(raw_files.glob(f"{UR_PREFIX}*.md")):
+            fields, body = _parse_frontmatter(p.read_text(encoding="utf-8"))
+            quotes = _ur_quotes(body)
+            active = len([q for q in quotes if q["status"] != "cancelled"])
+            found = True
+            print(f"  {coll_dir.name:22s} {p.stem:42s} {active:3d} نقل‌قول  "
+                  f"{fields.get('book_title', '?')}")
+    if not found:
+        print("هیچ کتابی در حال مطالعه نیست.")
+    return 0
+
+
 def cmd_graph(args):
     dirs = [COLLECTIONS / args.collection / "wiki"] if args.collection else _wiki_dirs()
     for wiki_dir in dirs:
@@ -883,6 +1249,33 @@ def main():
     p = sub.add_parser("graph", help="نقشه لینک‌های ویکی")
     p.add_argument("--collection", "-c")
     p.set_defaults(func=cmd_graph)
+
+    # ── منبع در حال مطالعه / User-Reading living source ──
+    p = sub.add_parser("ur-new", help="ساخت کتاب جدید در حال مطالعه")
+    p.add_argument("slug", help="slug انگلیسی، مثلاً maintenance-engineering")
+    p.add_argument("--title", required=True, help="عنوان کتاب (زبان اصلی)")
+    p.add_argument("--author", "-a")
+    p.add_argument("--year", "-y")
+    p.add_argument("--publisher")
+    p.add_argument("--edition")
+    p.add_argument("--isbn")
+    p.add_argument("--lang", default="fa")
+    p.add_argument("--page-basis", dest="page_basis", help="مبنای شماره صفحه")
+    p.add_argument("--started", help="تاریخ شروع (YYYY-MM-DD)")
+    p.add_argument("--collection", "-c", required=True)
+    p.set_defaults(func=cmd_user_reading_new)
+
+    p = sub.add_parser("ur-add", help="افزودن نقل‌قول به کتاب در حال مطالعه")
+    p.add_argument("slug")
+    p.add_argument("--page", "-p", required=True, help="شماره صفحه")
+    p.add_argument("--quote", "-q", required=True, help="متن دقیق جمله")
+    p.add_argument("--topic", "-t", help="موضوع")
+    p.add_argument("--note", "-n", help="یادداشت")
+    p.add_argument("--collection", "-c", required=True)
+    p.set_defaults(func=cmd_user_reading_add_quote)
+
+    p = sub.add_parser("ur-list", help="فهرست کتاب‌های در حال مطالعه")
+    p.set_defaults(func=cmd_user_reading_list)
 
     args = ap.parse_args()
     sys.exit(args.func(args))
