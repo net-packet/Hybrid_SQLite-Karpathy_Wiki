@@ -4,105 +4,65 @@ This project uses **Hermes Agent skills** as persistent operational memory. The 
 
 ## Skill: `document-archive`
 
-**Location:** `/opt/data/skills/productivity/document-archive/SKILL.md`  
-**Category:** `productivity`  
-**Loads:** Automatically in every session (skill system injects description + full content on `skill_view`)
+**Location:** `/opt/data/skills/productivity/document-archive/SKILL.md`
+**Category:** `productivity`
+**Size:** ~484 lines + 9 reference files (~54 KB)
+**Loads:** On `skill_view(name='document-archive')` — the description is injected into every session's context
 
 ### What the Skill Encodes
 
 | Aspect | In Skill | In Wiki/Code |
 |---|---|---|
-| Ingest flow (8 steps) | ✅ Step-by-step with triggers | ✅ `Ingest-Workflow.md` |
-| Query dual-path | ✅ Decision rules + examples | ✅ `Architecture.md` |
-| Lint discipline | ✅ 6 script checks + human content rules | ✅ `Wiki-Layer.md` |
+| Hard rules (8) | ✅ Approval gate, evidence-before-claiming | ✅ `Ingest-Workflow.md` |
+| Ingest flow (6 steps) | ✅ Exact order: add → wiki page → `doclib.py add` → log | ✅ `Ingest-Workflow.md` |
+| Query dual-path | ✅ Decision rules + fallback chain | ✅ `Architecture.md` |
+| Lint discipline | ✅ Script checks + human content rules | ✅ `Wiki-Layer.md` |
 | Collection routing | ✅ Human confirmation required | ✅ `Design-Decisions.md` |
-| Persian normalization | ✅ Two-layer rules | ✅ `Architecture.md` |
-| CLI commands | ✅ All 11 mapped to Karpathy ops | ✅ `CLI-Reference.md` |
+| Persian normalization | ✅ Two-layer (storage + search fold) | ✅ `Architecture.md` |
+| CLI commands (14) | ✅ All mapped, incl. `ur-*` | ✅ `CLI-Reference.md` |
 | File naming conventions | ✅ English short names, date prefixes | ✅ `Architecture.md` |
 | Extend-don't-create | ✅ Explicit rule | ✅ `Design-Decisions.md` |
+| Reference Map | ✅ 9-entry routing table | ✅ `references/` in this repo |
 
-### Skill Content (Full)
+### Where the Skill Lives in This Repo
 
-The skill is a Markdown file with YAML frontmatter. Key sections:
+The full skill content is mirrored here — **this page is not a copy of it**:
 
-```markdown
----
-name: document-archive
-description: Use for the user's document archive - ingest or search.
----
+| Skill artifact | Mirror in repo |
+|---|---|
+| `SKILL.md` (main instructions) | [`Ingest-Workflow.md`](Ingest-Workflow.md) |
+| `references/bootstrap.md` | [`references/bootstrap.md`](references/bootstrap.md) |
+| `references/collection-scope.md` | [`references/collection-scope.md`](references/collection-scope.md) |
+| `references/ingest-procedures.md` | [`references/ingest-procedures.md`](references/ingest-procedures.md) |
+| `references/wiki-page-contract.md` | [`references/wiki-page-contract.md`](references/wiki-page-contract.md) |
+| `references/living-source.md` | [`references/living-source.md`](references/living-source.md) |
+| `references/dual-path-query.md` | [`references/dual-path-query.md`](references/dual-path-query.md) |
+| `references/persian-normalization.md` | [`references/persian-normalization.md`](references/persian-normalization.md) |
+| `references/wiki-lint.md` | [`references/wiki-lint.md`](references/wiki-lint.md) |
+| `references/github-wiki-setup.md` | [`references/github-wiki-setup.md`](references/github-wiki-setup.md) |
 
-# آرشیو اسناد چندمجموعه‌ای
-
-## ساختار
-/opt/data/documents/
-├── SCHEMA.md          ← قانون اساسی آرشیو (اول بخوان)
-├── index.db           ← SQLite + FTS5
-├── doclib.py          ← اسکریپت استخراج/ایندکس/جستجو
-└── collections/<name>/
-    ├── COLLECTION.md  ← موضوع این مجموعه
-    ├── raw/{files,web,audio,images}
-    └── wiki/{index.md,log.md,sources,entities,concepts}
-
-مجموعه‌های موجود: `office-works`, `maintenance-learning`, `ai-learning`.
-
-## قواعد سخت
-1. هرگز محتوای `raw/` را تغییر نده.
-2. هیچ فایلی بدون تأیید کاربر اضافه نمی‌شود.
-3. هر عدد در `wiki/` باید ارجاع داشته باشد.
-4. Extend, don't create.
-5. `entities/` و `concepts/` فقط وقتی لازم شد.
-6. فایل `.md` همراه در `raw/`...
-
-## جریان ingest (8 steps)
-1. فایل را به پوشه درست `raw/` کپی کن
-2. `doclib.py add <path> -c <collection>`
-3. من `wiki/sources/x.md` می‌نویسم
-4. **`doclib.py add` روی صفحه ویکی هم بزن** ← critical bug fix
-5. من `index.md` + `log.md` بروز می‌کنم
-6. `doclib.py lint -c <collection>`
-7. به کاربر گزارش بده
-
-## پردازش انواع منبع (PDF, DOCX, Image, Audio, Web)
-...
-
-## جستجو — دو مسیر
-مسیر ۱ — نقطه‌ای: `search` → SQLite
-مسیر ۲ — تحلیلی: `index.md` → `links` → ترکیب
-
-## لایه ویکی — ابزارها
-`links`, `lint`, `graph` — full docs
-
-## قرارداد صفحه ویکی
-...
-
-## نکات فنی مهم
-- DOCLIB_ROOT = /opt/data/documents
-- نرمال‌سازی دو لایه
-- fts_key column
-- DOCX fallback
-...
-
-## افزودن مجموعه جدید
-...
-```
+**Rule:** `SKILL.md` is the single source of truth. This page explains the skill's *role and architecture* only — for the actual instructions, read `Ingest-Workflow.md`.
 
 ### How the Skill Works in Practice
 
-1. **Session start** → Hermes loads skill description into context
-2. **User sends file/link/voice** → I read `SCHEMA.md` (via skill instruction) → follow ingest flow
-3. **User asks question** → I apply Query dual-path (skill encodes the decision rules)
-4. **After ingest** → I run `lint` (skill says mandatory)
-5. **New collection needed** → Skill gives exact `mkdir` command + templates
+1. **Session start** → Hermes injects the skill description into context
+2. **User sends file/link/voice** → read `SCHEMA.md` → follow ingest flow
+3. **User asks a point question** → SQLite FTS5 `search`
+4. **User asks an analytical question** → wiki `index.md` → `links` graph traversal, then targeted `search` fallback
+5. **After ingest** → run `lint` (mandatory before reporting)
+6. **New collection needed** → skill gives exact `mkdir` sequence + templates
 
 ### Skill vs. Wiki vs. Code
 
 | Layer | Purpose | Audience |
 |---|---|---|
-| **Skill (`document-archive`)** | Operational memory — *how I execute* | Me (Hermes Agent) |
-| **Wiki (this GitHub Wiki)** | Documentation — *how the system works* | Humans, future maintainers |
+| **Skill (`document-archive`)** | Operational memory — *how I execute* | Hermes Agent |
+| **Wiki (this repo + GitHub Wiki)** | Documentation — *how the system works* | Humans, future maintainers |
 | **Code (`doclib.py`)** | Execution — *the actual machinery* | Runtime |
 
-The skill is **not** in the GitHub repo — it lives in the Hermes profile at `/opt/data/skills/productivity/document-archive/`. To port this system to another Hermes instance, copy the skill directory + `doclib.py` + `SCHEMA.md` + collections structure.
+The skill is **not** loaded from this repo — it lives in the Hermes profile at `/opt/data/skills/productivity/document-archive/`. This repo carries a **mirror** so the system is portable: clone the repo, read `Ingest-Workflow.md` + `references/`, and you have the full operational knowledge.
+
+To port the system to another Hermes instance: copy `doclib.py`, `SCHEMA.md`, the collections structure, and install the skill from the mirrored `Ingest-Workflow.md` + `references/`.
 
 ### Related Skills
 
