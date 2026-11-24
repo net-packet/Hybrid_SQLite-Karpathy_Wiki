@@ -30,16 +30,16 @@ The full skill content is mirrored here — **this page is not a copy of it**:
 
 | Skill artifact | Mirror in repo |
 |---|---|
-| `SKILL.md` (main instructions) | [`Ingest-Workflow.md`](Ingest-Workflow.md) |
-| `references/bootstrap.md` | [`references/bootstrap.md`](references/bootstrap.md) |
-| `references/collection-scope.md` | [`references/collection-scope.md`](references/collection-scope.md) |
-| `references/ingest-procedures.md` | [`references/ingest-procedures.md`](references/ingest-procedures.md) |
-| `references/wiki-page-contract.md` | [`references/wiki-page-contract.md`](references/wiki-page-contract.md) |
-| `references/living-source.md` | [`references/living-source.md`](references/living-source.md) |
-| `references/dual-path-query.md` | [`references/dual-path-query.md`](references/dual-path-query.md) |
-| `references/persian-normalization.md` | [`references/persian-normalization.md`](references/persian-normalization.md) |
-| `references/wiki-lint.md` | [`references/wiki-lint.md`](references/wiki-lint.md) |
-| `references/github-wiki-setup.md` | [`references/github-wiki-setup.md`](references/github-wiki-setup.md) |
+| `SKILL.md` (main instructions) | [`Ingest-Workflow.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/Ingest-Workflow.md) |
+| `references/bootstrap.md` | [`references/bootstrap.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/bootstrap.md) |
+| `references/collection-scope.md` | [`references/collection-scope.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/collection-scope.md) |
+| `references/ingest-procedures.md` | [`references/ingest-procedures.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/ingest-procedures.md) |
+| `references/wiki-page-contract.md` | [`references/wiki-page-contract.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/wiki-page-contract.md) |
+| `references/living-source.md` | [`references/living-source.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/living-source.md) |
+| `references/dual-path-query.md` | [`references/dual-path-query.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/dual-path-query.md) |
+| `references/persian-normalization.md` | [`references/persian-normalization.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/persian-normalization.md) |
+| `references/wiki-lint.md` | [`references/wiki-lint.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/wiki-lint.md) |
+| `references/github-wiki-setup.md` | [`references/github-wiki-setup.md`](https://github.com/net-packet/Hybrid_SQLite-Karpathy_Wiki/blob/main/references/github-wiki-setup.md) |
 
 **Rule:** `SKILL.md` is the single source of truth. This page explains the skill's *role and architecture* only — for the actual instructions, read `Ingest-Workflow.md`.
 

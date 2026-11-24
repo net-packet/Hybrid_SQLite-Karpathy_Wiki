@@ -184,7 +184,7 @@ curl -sS https://api.groq.com/openai/v1/audio/transcriptions \
 - `prompt` پارامتر پشتیبانی می‌شود — لیست اصطلاحات تخصصی را آنجا بده.
    `prompt` param supported — put domain terms there.
 
-**Voice command vs question detection:** The model cannot distinguish from audio alone. Use speech markers ("اضافه کن", "ثبت کن" vs "چیه؟", "معلومه؟") + file accompaniment. **Always confirm before ingest** — show transcript, ask "Add to <collection>?". In doubt, show transcript and ask briefly.
+**Voice command vs question detection:** The model cannot distinguish from audio alone. Use speech markers ("اضافه کن", "ثبت کن" vs "چیه؟", "معلومه؟") + file accompaniment. **Always confirm before ingest** — show transcript, ask "Add to &lt;collection&gt;?". In doubt, show transcript and ask briefly.
 
 ## منبع در حال مطالعه / Living Source
 
@@ -247,9 +247,9 @@ python3 /opt/data/documents/doclib.py ur-add <slug> -p 47 -q "متن دقیق ج
 | عمل / Action | مجاز / Allowed |
 |---|---|
 | افزودن نقل‌قول / Add quote | ✅ |
-| اصلاح تایپی / Fix typo | ✅ با `**اصلاح:** <تاریخ>` |
+| اصلاح تایپی / Fix typo | ✅ با یادداشت اصلاح تاریخ‌دار |
 | افزودن فیلد خالی frontmatter | ✅ |
-| حذف نقل‌قول / Delete quote | ❌ — `**لغو:** دلیل` بنویس، اسکریپت از نمای اصلی خارجش می‌کند |
+| حذف نقل‌قول / Delete quote | ❌ — یادداشت «لغو: دلیل» بنویس، اسکریپت از نمای اصلی خارجش می‌کند |
 | تغییر فیلد موجود frontmatter | ❌ |
 | شماره‌گذاری مجدد / Renumber | ❌ |
 
