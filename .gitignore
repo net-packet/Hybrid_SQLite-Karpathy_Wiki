@@ -1,0 +1,14 @@
+# Data — never commit the archive itself
+index.db
+index.db-journal
+index.db-wal
+collections/
+
+# Site build artifacts
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Local
+*.log
+.DS_Store
